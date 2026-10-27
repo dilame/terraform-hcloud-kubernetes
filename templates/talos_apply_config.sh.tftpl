@@ -17,6 +17,34 @@ for target in "$@"; do
     host_key=$(printf '%s' "$target" | sed 's/=.*//')
     host_addr=$(printf '%s' "$target" | sed 's/^[^=]*=//')
 
+    # A named target is checked against the node that answers on the address:
+    # the address may have been handed to another node, and the configuration of
+    # the member that used to hold it would give that node the wrong labels and
+    # taints. An address that answers nothing is skipped too — the node behind
+    # the member entry is gone, and a new node takes its configuration from the
+    # autoscaler's node configuration secret when it is created.
+    case "$target" in
+      *=*)
+        probe_retry=1
+        actual_hostname=""
+        while : ; do
+          if actual_hostname=$(talos_node_hostname --nodes "$host_addr" 2>/dev/null); then
+            break
+          fi
+          if [ "$probe_retry" -ge 3 ]; then
+            printf '%s\n' "Skipping $host_addr: no node answers for member $host_key"
+            exit 0
+          fi
+          probe_retry=$((probe_retry + 1))
+          sleep 5
+        done
+        if [ "$actual_hostname" != "$host_key" ]; then
+          printf '%s\n' "Skipping $host_addr: it is $actual_hostname now, not member $host_key"
+          exit 0
+        fi
+        ;;
+    esac
+
     machine_config=$(mktemp)
     cleanup() { rm -f "$machine_config"; }
     trap 'cleanup' EXIT
