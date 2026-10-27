@@ -3,18 +3,28 @@ talos_wait_for_health
 %{ endif ~}
 
 set -- ${join(" ", target_nodes)}
-for host in "$@"; do
+for target in "$@"; do
   (
     set -eu
+
+    # A target is either a plain address or `name=address`. The name is the
+    # node's stable identity (its cluster member and cloud server name); the
+    # address is what talosctl talks to. An address alone is not an identity:
+    # the cloud provider hands a private IP address out again for a new node
+    # while the deleted node's entry is still in the cluster's member list, so
+    # a key built from the address would collide with the entry of a node that
+    # no longer exists.
+    host_key=$(printf '%s' "$target" | sed 's/=.*//')
+    host_addr=$(printf '%s' "$target" | sed 's/^[^=]*=//')
 
     machine_config=$(mktemp)
     cleanup() { rm -f "$machine_config"; }
     trap 'cleanup' EXIT
     trap 'cleanup; exit 1' HUP INT TERM QUIT PIPE
 
-    printf '%s\n' "Applying machine configuration to node: $host"
+    printf '%s\n' "Applying machine configuration to node: $host_key ($host_addr)"
 
-    host_env_suffix=$(printf '%s' "$host" | tr . _)
+    host_env_suffix=$(printf '%s' "$host_key" | tr '.-' '__')
     mc_env_name="TALOS_MC_$host_env_suffix"
     eval "machine_config_value=\$$mc_env_name"
     printf '%s' "$machine_config_value" > "$machine_config"
@@ -25,7 +35,7 @@ for host in "$@"; do
       printf '%s\n' "Checking whether a reboot is required on node: $host"
 
       retry=1
-      until dry_run_output=$(talos_apply_config --nodes "$host" --file "$machine_config" --mode auto --dry-run 2>&1); do
+      until dry_run_output=$(talos_apply_config --nodes "$host_addr" --file "$machine_config" --mode auto --dry-run 2>&1); do
         talos_retry_or_exit retry
       done
 
@@ -38,21 +48,21 @@ for host in "$@"; do
           resolved_apply_mode="auto"
           ;;
         *)
-          printf '%s\n' "talosctl auto dry-run returned an unknown mode for node $host" >&2
+          printf '%s\n' "talosctl auto dry-run returned an unknown mode for node $host_addr" >&2
           printf '%s\n' "$dry_run_output" >&2
           exit 1
           ;;
       esac
     fi
 
-    printf '%s\n' "Resolved apply mode for node $host: $resolved_apply_mode"
+    printf '%s\n' "Resolved apply mode for node $host_addr: $resolved_apply_mode"
 
     if [ "$resolved_apply_mode" = "no_reboot" ]; then
       resolved_apply_mode="no-reboot"
     fi
 
     retry=1
-    until talos_apply_config --nodes "$host" --file "$machine_config" --mode "$resolved_apply_mode"; do
+    until talos_apply_config --nodes "$host_addr" --file "$machine_config" --mode "$resolved_apply_mode"; do
       talos_retry_or_exit retry
     done
 
@@ -60,7 +70,7 @@ for host in "$@"; do
       printf '%s\n' "Rebooting node: $host"
 
       retry=1
-      until talos_reboot --nodes "$host"; do
+      until talos_reboot --nodes "$host_addr"; do
         talos_retry_or_exit retry
       done
 
