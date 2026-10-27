@@ -71,15 +71,15 @@ locals {
     kubernetes_proxy_image              = var.kubernetes_proxy_image
     kubernetes_kubelet_image            = var.kubernetes_kubelet_image
     control_plane_nodes                 = local.control_plane_private_ipv4_list
-    # The health gate covers the control plane and the permanent worker pools
-    # only. Autoscaler nodes are ephemeral by design — they scale to zero at any
-    # moment — and the cluster's member list also keeps a node after the
-    # provider deleted it, whose address is then handed to a new node, so a gate
-    # that waits for every member address hangs on an address nothing answers
-    # on any more. Such a node's configuration is applied by the autoscaler
-    # machine-configuration resource, which reads the node's own hostname before
-    # it writes anything.
-    worker_nodes = local.worker_private_ipv4_list
+    # The gate asserts the exact set of Kubernetes nodes, so it has to be told
+    # about the autoscaler nodes as well: a node it was not told about is
+    # reported as unexpected. An address whose member entry outlived the node is
+    # still waited for — that is the price of the set assertion and it clears
+    # when the cluster's member list drops the deleted node.
+    worker_nodes = concat(
+      local.worker_private_ipv4_list,
+      local.cluster_autoscaler_private_ipv4_list
+    )
   })
 
   # Cluster Status
