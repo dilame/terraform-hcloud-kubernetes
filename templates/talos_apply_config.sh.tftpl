@@ -1,5 +1,8 @@
 %{ if healthcheck_enabled ~}
-talos_wait_for_health
+# This template configures the autoscaler nodes: the node groups may have been
+# renamed after the plan, so the gate must compare against the live members,
+# not against the plan-time group names.
+talos_wait_for_live_health
 %{ endif ~}
 
 set -- ${join(" ", target_nodes)}
@@ -103,7 +106,7 @@ for target in "$@"; do
       done
 
 %{ if healthcheck_enabled ~}
-      talos_wait_for_health
+      talos_wait_for_live_health
 %{ endif ~}
 
       printf '%s\n' "Node $host rebooted successfully"

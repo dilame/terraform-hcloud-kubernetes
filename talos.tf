@@ -63,6 +63,7 @@ locals {
     talosctl_retries                    = var.talosctl_retries
     healthcheck_enabled                 = var.cluster_healthcheck_enabled
     talos_primary_node                  = local.talos_primary_node_private_ipv4
+    network_ipv4_cidr                   = local.network_ipv4_cidr
     kube_api_url                        = local.kube_api_url_external
     kubernetes_version                  = var.kubernetes_version
     kubernetes_apiserver_image          = var.kubernetes_apiserver_image
