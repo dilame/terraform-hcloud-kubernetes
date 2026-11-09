@@ -63,6 +63,7 @@ locals {
     talosctl_retries                    = var.talosctl_retries
     healthcheck_enabled                 = var.cluster_healthcheck_enabled
     talos_primary_node                  = local.talos_primary_node_private_ipv4
+    cluster_kubeconfig_path             = coalesce(var.cluster_kubeconfig_path, "")
     kube_api_url                        = local.kube_api_url_external
     kubernetes_version                  = var.kubernetes_version
     kubernetes_apiserver_image          = var.kubernetes_apiserver_image
@@ -130,7 +131,8 @@ resource "terraform_data" "upgrade_control_plane" {
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Control Plane Node upgrade\""
 
     environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+      TALOSCONFIG             = nonsensitive(data.talos_client_configuration.this.talos_config)
+      CLUSTER_KUBECONFIG_PATH = coalesce(var.cluster_kubeconfig_path, "")
     }
   }
 
@@ -163,7 +165,8 @@ resource "terraform_data" "upgrade_worker" {
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Worker Node upgrade\""
 
     environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+      TALOSCONFIG             = nonsensitive(data.talos_client_configuration.this.talos_config)
+      CLUSTER_KUBECONFIG_PATH = coalesce(var.cluster_kubeconfig_path, "")
     }
   }
 
@@ -198,7 +201,8 @@ resource "terraform_data" "upgrade_cluster_autoscaler" {
     ]) : "printf '%s\\n' \"Cluster not initialized, skipping Cluster Autoscaler Node upgrade\""
 
     environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+      TALOSCONFIG             = nonsensitive(data.talos_client_configuration.this.talos_config)
+      CLUSTER_KUBECONFIG_PATH = coalesce(var.cluster_kubeconfig_path, "")
     }
   }
 
@@ -237,7 +241,8 @@ resource "terraform_data" "upgrade_kubernetes" {
     ])
 
     environment = {
-      TALOSCONFIG = nonsensitive(data.talos_client_configuration.this.talos_config)
+      TALOSCONFIG             = nonsensitive(data.talos_client_configuration.this.talos_config)
+      CLUSTER_KUBECONFIG_PATH = coalesce(var.cluster_kubeconfig_path, "")
     }
   }
 
