@@ -76,7 +76,7 @@ talos_health_node_addresses() {
     | paste -s -d , -
 }
 
-talos_health_check_live_members() {
+talos_health_check_live_nodes() {
   if ! ${healthcheck_enabled}; then
     return 0
   fi
@@ -103,7 +103,7 @@ talos_health_check_live_members() {
 
 talos_wait_for_live_health() {
   live_health_retry=1
-  until talos_health_check_live_members; do
+  until talos_health_check_live_nodes; do
     talos_retry_or_exit live_health_retry
   done
 }

@@ -1,7 +1,7 @@
 %{ if healthcheck_enabled ~}
 # This template configures the autoscaler nodes: the node groups may have been
-# renamed after the plan, so the gate must compare against the live members,
-# not against the plan-time group names.
+# renamed after the plan, so the gate reads the live Kubernetes Nodes, not the
+# plan-time group names.
 talos_wait_for_live_health
 %{ endif ~}
 
