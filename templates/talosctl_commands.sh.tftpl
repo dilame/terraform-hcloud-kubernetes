@@ -41,6 +41,52 @@ talos_wait_for_health() {
   done
 }
 
+# The expected node set for the autoscaler apply is read from the live cluster
+# instead of from the node lists captured at plan time. A plan can go stale
+# before it is applied: when the autoscaler node groups are renamed, nodes of
+# the old groups are still live members, the plan-time set no longer names
+# them, and `talosctl health` waits forever on "unexpected nodes". The member
+# list is the cluster's own statement of which nodes exist.
+talos_member_addresses() {
+  talosctl get member \
+    --talosconfig "$talosconfig" \
+    --nodes "${talos_primary_node}" \
+    --output json \
+    | jq -r -s --arg machine_type "$1" '
+        map(select(.spec.machineType == $machine_type)) | .[] | (.spec.addresses // [])[]
+      ' \
+    | grep -Ex '([0-9]{1,3}\.){3}[0-9]{1,3}' \
+    | paste -s -d , -
+}
+
+talos_health_check_live_members() {
+  if ! ${healthcheck_enabled}; then
+    return 0
+  fi
+
+  control_plane_nodes=$(talos_member_addresses controlplane)
+  if [ -z "$control_plane_nodes" ]; then
+    printf '%s\n' "talosctl get member returned no control-plane addresses" >&2
+    return 1
+  fi
+  worker_nodes=$(talos_member_addresses worker)
+
+  talosctl health \
+    --talosconfig "$talosconfig" \
+    --server=true \
+    --control-plane-nodes "$control_plane_nodes" \
+    --worker-nodes "$worker_nodes" \
+    --nodes "${talos_primary_node}" \
+    "$@"
+}
+
+talos_wait_for_live_health() {
+  live_health_retry=1
+  until talos_health_check_live_members; do
+    talos_retry_or_exit live_health_retry
+  done
+}
+
 # The hostname the node behind an address reports, so a caller can tell whether
 # the node it is about to configure is still the one it means: a provider hands
 # a deleted node's address to a new node.
