@@ -1,4 +1,4 @@
-talos_wait_for_live_health
+talos_wait_for_health
 
 retry=1
 until talos_upgrade_k8s; do
@@ -6,4 +6,4 @@ until talos_upgrade_k8s; do
 done
 sleep 5
 
-talos_wait_for_live_health
+talos_wait_for_health
