@@ -6,14 +6,12 @@ trap 'cleanup' EXIT
 trap 'cleanup; exit 1' HUP INT TERM QUIT PIPE
 
 printf '%s' "$TALOSCONFIG" > "$talosconfig"
-# Live gates get the kubeconfig content as an environment variable. The Talos
-# upgrade and reboot paths can run before a kubeconfig exists on a fresh
-# cluster: they get the configured path instead and use it whenever the file is
-# there, so a gate on an existing cluster still reads the live Node list.
+# Every health-gate resource passes the kubeconfig content from state in
+# CLUSTER_KUBECONFIG_CONTENT. It is empty only on the bootstrap path, where the
+# Kubernetes API does not exist yet; the gate then falls back to plan-time
+# lists. There is no path plumbing: a fresh working copy has no kubeconfig file.
 if [ -n "$${CLUSTER_KUBECONFIG_CONTENT:-}" ]; then
   printf '%s' "$CLUSTER_KUBECONFIG_CONTENT" > "$kubeconfig"
-elif [ -n "$${CLUSTER_KUBECONFIG_PATH:-}" ] && [ -f "$CLUSTER_KUBECONFIG_PATH" ]; then
-  cp "$CLUSTER_KUBECONFIG_PATH" "$kubeconfig"
 fi
 
 talos_retry_or_exit() {
@@ -30,9 +28,11 @@ talos_retry_or_exit() {
   sleep 10
 }
 
-# The plan-time list is the bootstrap fallback: on a fresh cluster the
-# Kubernetes API does not exist yet, so there is no Node list to read. Every
-# gate that runs while the API exists goes through talos_wait_for_live_health.
+# The plan-time list is the fallback for resources with empty kubeconfig
+# content: the bootstrap path, where the Kubernetes API does not exist yet, and
+# the upgrade resources, which run before the control-plane apply and cannot
+# reference the kubeconfig without a dependency cycle. Every other gate goes
+# through talos_wait_for_live_health.
 talos_health_check() {
   if ! ${healthcheck_enabled}; then
     return 0
